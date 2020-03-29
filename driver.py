@@ -5,16 +5,18 @@ license: GPL attribution share alike
 """
 
 import time
-import OPi.GPIO as GPIO
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BOARD)
+import orangepi.zeroplus2
+from OPi import GPIO
+GPIO.setmode(orangepi.zeroplus2.BOARD)
+GPIO.setwarnings(True)
 
-verbose = False
+verbose = True
 # pin defs
 not_oe = 13     # output enable GPIO 0
 clk = 22        # clock		GPIO 2
 le = 3          # latch		GPIO 12
 sdo = 26        # data out	GPIO 10
+
 btn = 18     	# button pin 	GPIO 18
 GPIO.setup(btn, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
@@ -22,6 +24,7 @@ GPIO.setup(btn, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 # 4th is for the point
 letters = {
     ' ': [0, 0, 0, 0, 0, 0, 0, 0],
+    '.': [0, 0, 0, 1, 0, 0, 0 ,0],
     '0': [1, 1, 1, 0, 1, 1, 1, 0],
     '1': [1, 0, 0, 0, 1, 0, 0, 0],
     '2': [0, 1, 1, 0, 1, 1, 0, 1],
@@ -32,7 +35,6 @@ letters = {
     '7': [1, 0, 0, 0, 1, 1, 0, 0],
     '8': [1, 1, 1, 0, 1, 1, 1, 1],
     '9': [1, 1, 0, 0, 1, 1, 1, 1],
-    '.': [0, 0, 0, 1, 0, 0, 0, 0],
     'P': [0, 0, 1, 0, 1, 1, 1, 1],
     'A': [1, 0, 1, 0, 1, 1, 1, 1],
     'B': [1, 1, 1, 0, 1, 1, 1, 1],
@@ -64,17 +66,27 @@ class Driver:
 
     # sends a string representation of a float, deals with floating points
     def update(self, number):
-
+        point = False
+        
         # send digits
         for char in number:
-            self.send_digit(char)
+            if char == '.':
+                point = True
+                continue
+            self.send_digit(char, point)
+            point = False
 
         # latch the outputs
         GPIO.output(le, True)
         GPIO.output(le, False)
 
     # send a char, with optional point
-    def send_digit(self, char):
+    def send_digit(self, char, point = False):
+        # set the point bit
+        if point:
+            letters[char][3] = 1
+        else:
+            letters[char][3] = 0
 
         if verbose:
             print("sending %s = %s" % (
@@ -110,19 +122,26 @@ class Timer:
         self.time_start = time.time()
         self.seconds = 0
         self.minutes = 0
+        self.indicator = False
     
     def update(self):
         seconds_passed = int(time.time() - self.time_start) - self.minutes * 60
         self.minutes += seconds_passed // 60
+        if (seconds_passed % 60) != self.seconds:
+            self.indicator = not(self.indicator)
         self.seconds = seconds_passed % 60
     
     def reset(self):
         self.time_start = time.time()
         self.seconds = 0
         self.minutes = 0
+        self.indicator = False
     
     def get_string(self):
-        string = "{:02d}".format(self.minutes) + "{:02d}".format(self.seconds)
+        string = "{:02d}".format(self.minutes)
+        if self.indicator:
+            string += "."
+        string += "{:02d}".format(self.seconds)
         if verbose:
             print('time:', string)
         return string
@@ -138,11 +157,12 @@ if __name__ == '__main__':
     timer = Timer()
 
     try:
+        print("Press CTRL+C to exit")
         while True:
-            button_state = GPIO.input(btn)
-            if button_state == False:   # btn was pressed, (re)start timer
-                flag += not(button_state)
-                timer.reset()
+            #button_state = True
+            #if button_state == False:   # btn was pressed, (re)start timer
+            #    flag += not(button_state)
+            #    timer.reset()
 
             if flag : timer.update()
             timer_representation = timer.get_string()
