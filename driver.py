@@ -2,6 +2,8 @@
 title:   Big 7 segment driver
 author:  Dieter Vanderfaeillie
 license: GPL attribution share alike
+
+uses code from  mattvenn/big-led-driver 
 """
 
 import time
